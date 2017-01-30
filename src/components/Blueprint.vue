@@ -7,19 +7,17 @@
         <path class="interiorWall" :d="interiorWallsPath"></path>
         <path class="wallPreview" :d="previewPath"></path>
       </g>
-      <g class="guides">
-        <path :visibility="guideVisibility" :d="xGuidePath" class="guideline"></path>
-        <path :visibility="guideVisibility" :d="yGuidePath" class="guideline"></path>
-        <circle style="fill: white; stroke: white;" :cx="nextCoord[0]" :cy="nextCoord[1]" r="10"></circle>
-        <circle v-if="currentInteriorWall.length > 0" style="fill: white; stroke: white;" :cx="currentInteriorWall[0][0]" :cy="currentInteriorWall[0][1]" r="10"></circle>
+      <g class="guides" :visibility="guideVisibility" >
+        <path :d="xGuidePath" class="guideline"></path>
+        <path :d="yGuidePath" class="guideline"></path>
+        <circle class="guidePoint" :cx="nextCoord[0]" :cy="nextCoord[1]" r="10"></circle>
+        <circle class="guidePoint" v-if="currentInteriorWall.length > 0" :cx="currentInteriorWall[0][0]" :cy="currentInteriorWall[0][1]" r="10"></circle>
         <rect class="measurementRect" :x="point.x - 50" :y="point.y - 30" width="100" height="30" v-for="point in wallMeasurements"></rect>
         <text :x="point.x - 20" :y="point.y - 10" v-for="point in wallMeasurements">{{ point.value }}</text>
-        <circle :visibility="guideVisibility" class="exteriorBeginGuide" :cx="exteriorBeginGuide.x" :cy="exteriorBeginGuide.y" r="10"></circle>
+        <circle class="exteriorBeginGuide" :cx="exteriorBeginGuide.x" :cy="exteriorBeginGuide.y" r="10"></circle>
       </g>
     </svg>
-    {{ debugMessage }}<br/>
-    {{ nearestWall }}<br/>
-    {{ currentInteriorWallOrigin }}
+    {{ instructionMessage }}
   </div>
 </template>
 
@@ -41,12 +39,15 @@ const initDraw = (vueThis) => {
   d3.select('svg')
     .on('click', () => {
       if (vue.drawMode === drawModes.OUTSIDEWALLS) {
+        vue.instructionMessage = 'Now keep drawing the wall. Connect to first corner when ready';
         vue.exteriorWallpoints.push(vue.nextCoord);
       } else if (vue.drawMode === drawModes.INSIDEWALLS1) {
+        vue.instructionMessage = 'Now select the end for the interior wall';
         vue.currentInteriorWall = [vue.nextCoord];
         vue.currentInteriorWallOrigin = vue.nearestWall.line;
         vue.drawMode = drawModes.INSIDEWALLS2;
       } else if (vue.drawMode === drawModes.INSIDEWALLS2) {
+        vue.instructionMessage = 'Add an interior wall by selecting a point or press save';
         vue.currentInteriorWall[1] = vue.nextCoord;
         vue.interiorWalls.push(vue.currentInteriorWall);
         vue.currentInteriorWall = [];
@@ -66,6 +67,7 @@ const initDraw = (vueThis) => {
       vue.exteriorWallpoints.push(vue.exteriorWallpoints[0]);
       vue.drawMode = drawModes.INSIDEWALLS1;
       vue.ready = true;
+      vue.instructionMessage = 'Now start drawing an interior wall by selecting a point. Or you can save if ready';
       d3.event.stopPropagation();
     });
 };
@@ -80,7 +82,7 @@ export default {
       interiorWalls: [],
       hoverCoord: [0, 0],
       drawMode: '',
-      debugMessage: 'debug',
+      instructionMessage: 'Start by selecting the house corner',
       currentInteriorWall: [],
       currentInteriorWallOrigin: [],
       distanceFactor: 0.025,
@@ -141,9 +143,15 @@ export default {
     },
     // Guidelines for next selected point
     xGuidePath() {
+      if (this.nextCoord.length === 0) {
+        return util.coordToLine([]);
+      }
       return util.coordToLine([[0, this.nextCoord[1]], [1200, this.nextCoord[1]]]);
     },
     yGuidePath() {
+      if (this.nextCoord.length === 0) {
+        return util.coordToLine([]);
+      }
       return util.coordToLine([[this.nextCoord[0], 0], [this.nextCoord[0], 800]]);
     },
     // Circle in the beginning of exterior walls. It's also used for ending the exterior wall
@@ -159,7 +167,7 @@ export default {
     },
     // Visibility state for the drawing aids
     guideVisibility() {
-      return this.drawMode === drawModes.OUTSIDEWALLS ? 'visible' : 'hidden';
+      return this.editMode ? 'visible' : 'hidden';
     },
     // Calculated values and guide positions for wall lenghts
     wallMeasurements() {
@@ -266,6 +274,7 @@ export default {
   methods: {
     save() {
       this.editMode = false;
+      this.instructionMessage = 'It\'s gone.';
     },
   },
   mounted() {
@@ -293,6 +302,10 @@ svg {
   stroke-width: 4px;
 }
 
+.wallPreview {
+  opacity: 0.5;
+}
+
 .interiorWall {
   fill: none;
   stroke: white;
@@ -307,6 +320,10 @@ svg {
 }
 .exteriorBeginGuide {
   fill: black;
+}
+.guidePoint {
+  fill: white;
+  opacity: 0.5;
 }
 .guides > text {
   fill: white;
