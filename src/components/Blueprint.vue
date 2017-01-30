@@ -226,9 +226,10 @@ export default {
         const distance = util.distanceToSegment(this.hoverCoord, line[0], line[1]);
 
         const isHorizontal = line[0][1] === line[1][1];
-        const wallPoint = isHorizontal ?
+        const unclampedWallPoint = isHorizontal ?
           [this.hoverCoord[0], line[0][1]] :
           [line[0][0], this.hoverCoord[1]];
+        const wallPoint = util.clampPointToSegment(unclampedWallPoint, line);
         const path = util.coordToLine([this.hoverCoord, wallPoint]);
 
         if (distance < nearestLine.distance) {
@@ -244,9 +245,10 @@ export default {
       this.interiorWalls.forEach((wall) => {
         const distance = util.distanceToSegment(this.hoverCoord, wall[0], wall[1]);
         const isHorizontal = wall[0][1] === wall[1][1];
-        const wallPoint = isHorizontal ?
+        const unclampedWallPoint = isHorizontal ?
           [this.hoverCoord[0], wall[0][1]] :
           [wall[0][0], this.hoverCoord[1]];
+        const wallPoint = util.clampPointToSegment(unclampedWallPoint, wall);
         const path = util.coordToLine([this.hoverCoord, wallPoint]);
         if (distance < nearestLine.distance) {
           nearestLine = {

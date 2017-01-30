@@ -31,9 +31,24 @@ const alignPoint = (point, target) => {
   return alignedPoint;
 };
 
-const clampPointOnSegment = (point, lineSegment) => {
-  console.log(lineSegment);
-  return point;
+const isHorizontal = line => line[0][1] === line[1][1];
+
+const clampPointToSegment = (point, lineSegment) => {
+  const clampedPoint = point;
+  const segmentXs = [lineSegment[0][0], lineSegment[1][0]];
+  const segmentYs = [lineSegment[0][1], lineSegment[1][1]];
+  if (isHorizontal(lineSegment)) {
+    if (point[0] < Math.min.apply(null, segmentXs)) {
+      clampedPoint[0] = Math.min.apply(null, segmentXs);
+    } else if (point[0] > Math.max.apply(null, segmentXs)) {
+      clampedPoint[0] = Math.max.apply(null, segmentXs);
+    }
+  } else if (point[1] < Math.min.apply(null, segmentYs)) {
+    clampedPoint[1] = Math.min.apply(null, segmentYs);
+  } else if (point[1] > Math.max.apply(null, segmentYs)) {
+    clampedPoint[1] = Math.max.apply(null, segmentYs);
+  }
+  return clampedPoint;
 };
 
 export default {
@@ -41,5 +56,6 @@ export default {
   coordPairsToLine,
   distanceToSegment,
   alignPoint,
-  clampPointOnSegment,
+  isHorizontal,
+  clampPointToSegment,
 };
