@@ -10,7 +10,7 @@
       <g class="guides">
         <path :visibility="guideVisibility" :d="xGuidePath" class="guideline"></path>
         <path :visibility="guideVisibility" :d="yGuidePath" class="guideline"></path>
-        <circle style="fill: white; stroke: white;" :cx="nearestWall.wallPoint[0]" :cy="nearestWall.wallPoint[1]" r="10"></circle>
+        <circle style="fill: white; stroke: white;" :cx="nextCoord[0]" :cy="nextCoord[1]" r="10"></circle>
         <circle v-if="currentInteriorWall.length > 0" style="fill: white; stroke: white;" :cx="currentInteriorWall[0][0]" :cy="currentInteriorWall[0][1]" r="10"></circle>
         <rect class="measurementRect" :x="point.x - 50" :y="point.y - 30" width="100" height="30" v-for="point in wallMeasurements"></rect>
         <text :x="point.x - 20" :y="point.y - 10" v-for="point in wallMeasurements">{{ point.value }}</text>
@@ -40,18 +40,17 @@ const initDraw = (vueThis) => {
 
   d3.select('svg')
     .on('click', () => {
-      console.log('SVG click');
       if (vue.drawMode === drawModes.OUTSIDEWALLS) {
         vue.exteriorWallpoints.push(vue.nextCoord);
       } else if (vue.drawMode === drawModes.INSIDEWALLS1) {
+        vue.currentInteriorWall = [vue.nextCoord];
+        vue.currentInteriorWallOrigin = vue.nearestWall.line;
         vue.drawMode = drawModes.INSIDEWALLS2;
-        vue.currentInteriorWall = [vue.nearestWall.wallPoint];
-        vue.currentInteriorWallOrigin = vue.nearestWall.line.toString();
       } else if (vue.drawMode === drawModes.INSIDEWALLS2) {
-        vue.drawMode = drawModes.INSIDEWALLS1;
-        vue.currentInteriorWall[1] = vue.nearestWall.wallPoint;
+        vue.currentInteriorWall[1] = vue.nextCoord;
         vue.interiorWalls.push(vue.currentInteriorWall);
         vue.currentInteriorWall = [];
+        vue.drawMode = drawModes.INSIDEWALLS1;
       }
     })
     .on('mousemove', function boundMouseover() {
@@ -85,6 +84,7 @@ export default {
       currentInteriorWall: [],
       currentInteriorWallOrigin: [],
       distanceFactor: 0.025,
+      snapDistance: 50,
     };
   },
   computed: {
@@ -107,29 +107,37 @@ export default {
         const guideCoords = [prevWallpoint, this.nextCoord];
         path = util.coordToLine(guideCoords);
       } else if (this.drawMode === drawModes.INSIDEWALLS1) {
-        path = this.straightPathToNearestWall;
+        path = util.coordToLine([]);
       } else if (this.drawMode === drawModes.INSIDEWALLS2) {
-        path = util.coordToLine([this.nearestWall.wallPoint, this.currentInteriorWall[0]]);
+        path = util.coordToLine([this.nextCoord, this.currentInteriorWall[0]]);
       }
       return path;
     },
-    // Coordinate for calculating next point of exterior wall.
-    // Calculated by aligning the cursor position
-    // with 90 degree angle of previous exterior wall point
+    // Coordinate for calculating next point to save when clicked
     nextCoord() {
-      if (this.exteriorWallpoints.length === 0) {
-        return this.hoverCoord;
+      let coord = [];
+
+      // Exterior walls are ensured to be on 90 degree angles
+      if (this.drawMode === drawModes.OUTSIDEWALLS) {
+        if (this.exteriorWallpoints.length === 0) {
+          return this.hoverCoord;
+        }
+        const prevWallpoint = this.exteriorWallpoints[this.exteriorWallpoints.length - 1];
+        coord = util.alignPoint(this.hoverCoord, prevWallpoint);
+      } else if (this.drawMode === drawModes.INSIDEWALLS1 ||
+          this.drawMode === drawModes.INSIDEWALLS2) {
+        if (this.nearestWall.distance < this.snapDistance) {
+          coord = this.nearestWall.wallPoint;
+        } else {
+          coord = this.hoverCoord;
+        }
       }
 
-      const prevWallpoint = this.exteriorWallpoints[this.exteriorWallpoints.length - 1];
-      /*
-      const xDiff = Math.abs(prevWallpoint[0] - this.hoverCoord[0]);
-      const yDiff = Math.abs(prevWallpoint[1] - this.hoverCoord[1]);
-      return xDiff > yDiff ?
-        [this.hoverCoord[0], prevWallpoint[1]] :
-        [prevWallpoint[0], this.hoverCoord[1]];
-        */
-      return util.alignPoint(this.hoverCoord, prevWallpoint);
+      if (this.drawMode === drawModes.INSIDEWALLS2) {
+        coord = util.alignPoint(coord, this.currentInteriorWall[0]);
+      }
+
+      return coord;
     },
     // Guidelines for next selected point
     xGuidePath() {

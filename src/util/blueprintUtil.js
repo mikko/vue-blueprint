@@ -31,10 +31,15 @@ const alignPoint = (point, target) => {
   return alignedPoint;
 };
 
+const clampPointOnSegment = (point, lineSegment) => {
+  console.log(lineSegment);
+  return point;
+};
 
 export default {
   coordToLine,
   coordPairsToLine,
   distanceToSegment,
   alignPoint,
+  clampPointOnSegment,
 };
