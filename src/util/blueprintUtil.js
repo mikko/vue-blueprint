@@ -19,9 +19,22 @@ const distToSegmentSquared = (p, v, w) => {
 };
 const distanceToSegment = (p, w, v) => Math.sqrt(distToSegmentSquared(p, v, w));
 
+const alignPoint = (point, target) => {
+  const alignedPoint = point;
+  const xDiff = Math.abs(point[0] - target[0]);
+  const yDiff = Math.abs(point[1] - target[1]);
+  if (xDiff < yDiff) {
+    alignedPoint[0] = target[0];
+  } else {
+    alignedPoint[1] = target[1];
+  }
+  return alignedPoint;
+};
+
 
 export default {
   coordToLine,
   coordPairsToLine,
   distanceToSegment,
+  alignPoint,
 };

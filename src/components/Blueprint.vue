@@ -10,17 +10,16 @@
       <g class="guides">
         <path :visibility="guideVisibility" :d="xGuidePath" class="guideline"></path>
         <path :visibility="guideVisibility" :d="yGuidePath" class="guideline"></path>
-        <path style="stroke: green; stroke-width: 5px;" class="guideline" :d="unfinishedWallPath"></path>
-        <circle style="stroke: red;" :cx="hoverCoord[0]" :cy="hoverCoord[1]" :r="nearestWall.distance"></circle>
         <circle style="fill: white; stroke: white;" :cx="nearestWall.wallPoint[0]" :cy="nearestWall.wallPoint[1]" r="10"></circle>
         <circle v-if="currentInteriorWall.length > 0" style="fill: white; stroke: white;" :cx="currentInteriorWall[0][0]" :cy="currentInteriorWall[0][1]" r="10"></circle>
         <rect class="measurementRect" :x="point.x - 50" :y="point.y - 30" width="100" height="30" v-for="point in wallMeasurements"></rect>
         <text :x="point.x - 20" :y="point.y - 10" v-for="point in wallMeasurements">{{ point.value }}</text>
-        <circle :visibility="guideVisibility" class="startGuide" :cx="startGuide.x" :cy="startGuide.y" r="10"></circle>
+        <circle :visibility="guideVisibility" class="exteriorBeginGuide" :cx="exteriorBeginGuide.x" :cy="exteriorBeginGuide.y" r="10"></circle>
       </g>
     </svg>
     {{ debugMessage }}<br/>
-    {{ hoverCoord }}<br/>
+    {{ nearestWall }}<br/>
+    {{ currentInteriorWallOrigin }}
   </div>
 </template>
 
@@ -41,14 +40,14 @@ const initDraw = (vueThis) => {
 
   d3.select('svg')
     .on('click', () => {
+      console.log('SVG click');
       if (vue.drawMode === drawModes.OUTSIDEWALLS) {
         vue.exteriorWallpoints.push(vue.nextCoord);
       } else if (vue.drawMode === drawModes.INSIDEWALLS1) {
-        vue.debugMessage = 'Wall begin chosen';
         vue.drawMode = drawModes.INSIDEWALLS2;
         vue.currentInteriorWall = [vue.nearestWall.wallPoint];
+        vue.currentInteriorWallOrigin = vue.nearestWall.line.toString();
       } else if (vue.drawMode === drawModes.INSIDEWALLS2) {
-        vue.debugMessage = 'Wall end chosen';
         vue.drawMode = drawModes.INSIDEWALLS1;
         vue.currentInteriorWall[1] = vue.nearestWall.wallPoint;
         vue.interiorWalls.push(vue.currentInteriorWall);
@@ -59,20 +58,14 @@ const initDraw = (vueThis) => {
       vue.hoverCoord = d3.mouse(this);
     });
 
-  d3.select('.startGuide')
+  d3.select('.exteriorBeginGuide')
     .on('click', () => {
-      const lastWallpoint = vue.exteriorWallpoints[vue.exteriorWallpoints.length - 1];
-      vue.exteriorWallpoints.push(vue.exteriorWallpoints[0]);
+      const lastWallpoint = vue.exteriorWallpoints.pop(); // [vue.exteriorWallpoints.length - 1];
       // Compensate last point for 90 degree angle
-      const xDiff = Math.abs(lastWallpoint[0] - vue.hoverCoord[0]);
-      const yDiff = Math.abs(lastWallpoint[1] - vue.hoverCoord[1]);
-      if (xDiff < yDiff) {
-        lastWallpoint[0] = vue.exteriorWallpoints[0][0];
-      } else {
-        lastWallpoint[1] = vue.exteriorWallpoints[0][1];
-      }
+      const alignedLastPoint = util.alignPoint(lastWallpoint, vue.exteriorWallpoints[0]);
+      vue.exteriorWallpoints.push(alignedLastPoint);
+      vue.exteriorWallpoints.push(vue.exteriorWallpoints[0]);
       vue.drawMode = drawModes.INSIDEWALLS1;
-      vue.debugMessage = 'Exterior walls done';
       vue.ready = true;
       d3.event.stopPropagation();
     });
@@ -90,53 +83,65 @@ export default {
       drawMode: '',
       debugMessage: 'debug',
       currentInteriorWall: [],
+      currentInteriorWallOrigin: [],
       distanceFactor: 0.025,
     };
   },
   computed: {
+    // Path created for drawing an exterior wall through all the coordinates
     exteriorWallsPath() {
       return util.coordToLine(this.exteriorWallpoints);
     },
+    // Path drawing all the interior walls
     interiorWallsPath() {
       return util.coordPairsToLine(this.interiorWalls);
     },
-    unfinishedWallPath() {
+    // Path showing the unfinished interior wall TODO: combine with previewPath
+    previewPath() {
       let path = '';
-      if (this.drawMode === drawModes.INSIDEWALLS1) {
+      if (this.drawMode === drawModes.OUTSIDEWALLS) {
+        if (this.exteriorWallpoints.length === 0) {
+          return util.coordToLine([]);
+        }
+        const prevWallpoint = this.exteriorWallpoints[this.exteriorWallpoints.length - 1];
+        const guideCoords = [prevWallpoint, this.nextCoord];
+        path = util.coordToLine(guideCoords);
+      } else if (this.drawMode === drawModes.INSIDEWALLS1) {
         path = this.straightPathToNearestWall;
       } else if (this.drawMode === drawModes.INSIDEWALLS2) {
         path = util.coordToLine([this.nearestWall.wallPoint, this.currentInteriorWall[0]]);
       }
       return path;
     },
+    // Coordinate for calculating next point of exterior wall.
+    // Calculated by aligning the cursor position
+    // with 90 degree angle of previous exterior wall point
     nextCoord() {
       if (this.exteriorWallpoints.length === 0) {
         return this.hoverCoord;
       }
+
       const prevWallpoint = this.exteriorWallpoints[this.exteriorWallpoints.length - 1];
+      /*
       const xDiff = Math.abs(prevWallpoint[0] - this.hoverCoord[0]);
       const yDiff = Math.abs(prevWallpoint[1] - this.hoverCoord[1]);
       return xDiff > yDiff ?
         [this.hoverCoord[0], prevWallpoint[1]] :
         [prevWallpoint[0], this.hoverCoord[1]];
+        */
+      return util.alignPoint(this.hoverCoord, prevWallpoint);
     },
-    previewPath() {
-      if (this.exteriorWallpoints.length === 0) {
-        return util.coordToLine([]);
-      }
-      const prevWallpoint = this.exteriorWallpoints[this.exteriorWallpoints.length - 1];
-      const guideCoords = [prevWallpoint, this.nextCoord];
-      return util.coordToLine(guideCoords);
-    },
+    // Guidelines for next selected point
     xGuidePath() {
       return util.coordToLine([[0, this.nextCoord[1]], [1200, this.nextCoord[1]]]);
     },
     yGuidePath() {
       return util.coordToLine([[this.nextCoord[0], 0], [this.nextCoord[0], 800]]);
     },
-    startGuide() {
+    // Circle in the beginning of exterior walls. It's also used for ending the exterior wall
+    exteriorBeginGuide() {
       if (this.exteriorWallpoints.length === 0) {
-        return { x: 0, y: 0 };
+        return { x: -100, y: -100 };
       }
       const startPoint = this.exteriorWallpoints[0];
       return {
@@ -144,9 +149,11 @@ export default {
         y: startPoint[1],
       };
     },
+    // Visibility state for the drawing aids
     guideVisibility() {
       return this.drawMode === drawModes.OUTSIDEWALLS ? 'visible' : 'hidden';
     },
+    // Calculated values and guide positions for wall lenghts
     wallMeasurements() {
       const measurementPoints = this.exteriorWallpoints.map((point, index) => {
         if (index === 0) {
@@ -193,6 +200,7 @@ export default {
         util.coordToLine([this.hoverCoord, [this.hoverCoord[0], line[0][1]]]) :
         util.coordToLine([this.hoverCoord, [line[0][0], this.hoverCoord[1]]]);
     },
+    // Calculate info about the wall nearest to cursor
     nearestWall() {
       let nearestLine = {
         line: [[], []],
@@ -287,7 +295,7 @@ svg {
   stroke-width: 1px;
   stroke-opacity: 0.5;
 }
-.startGuide {
+.exteriorBeginGuide {
   fill: black;
 }
 .guides > text {
